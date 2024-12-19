@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -137,9 +138,12 @@ func (lc *LinkCollector) ExtractLinks(n *html.Node, baseURL string) {
 }
 
 // AddLink processes a link and initiates collection for new links.
-func (lc *LinkCollector) AddLink(link string, baseURL string) {
+func (lc *LinkCollector) AddLink(link, baseURL string) {
 	parsedLink, err := url.Parse(link)
 	if err == nil {
+		if _, ok := lc.blocklist[parsedLink.Host]; ok {
+			return
+		}
 		if parsedLink.Host == "" {
 			// If it's a relative link, construct the full URL
 			parsedBase, _ := url.Parse(baseURL)
@@ -186,8 +190,14 @@ func (lc *LinkCollector) SaveDomainList(filename string) {
 	defer lc.mu.Unlock()
 
 	domains := make([]string, 0, len(lc.DomainList))
+	var badDomains []string
 	for domain := range lc.DomainList {
-		domains = append(domains, domain)
+		if _, ok := lc.blocklist[domain]; !ok {
+			domains = append(domains, domain)
+		}
+		if ContainsAny(domain, anyof) {
+			badDomains = append(badDomains, domain)
+		}
 	}
 
 	file, err := os.Create(filename)
@@ -207,6 +217,21 @@ func (lc *LinkCollector) SaveDomainList(filename string) {
 		fmt.Printf("Error writing to file %s: %s\n", filename, err)
 		return
 	}
+	if err := ioutil.WriteFile("bad_domains.txt", []byte(strings.Join(badDomains, "\n")), 0o644); err != nil {
+		fmt.Printf("Error writing to file %s: %s\n", "bad_domains.txt", err)
+		return
+	}
 
 	fmt.Printf("Visited domains saved to %s\n", filename)
+}
+
+var anyof = []string{"google.com", "msn.com", "github.com", "gitlab.com", "yahoo", "adtech", "ads.", "discord.gg", "discord.com", "yimg.com", "ytimg"}
+
+func ContainsAny(str string, comp []string) bool {
+	for _, c := range comp {
+		if strings.Contains(str, c) && !strings.Contains(str, "downloads") {
+			return true
+		}
+	}
+	return false
 }

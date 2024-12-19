@@ -7,7 +7,17 @@ import (
 	"strings"
 )
 
-var extra = []string{"google.com", "yahoo.com", "github.com"}
+func extra() []string {
+	data, err := ioutil.ReadFile("extra.txt")
+	if err != nil {
+		log.Fatalf("Could not read file: %v", err)
+	}
+	content := string(data)
+
+	// Remove lines starting with #
+	lines := strings.Split(content, "\n")
+	return lines
+}
 
 func main() {
 	// Read the hosts.txt file
@@ -54,7 +64,7 @@ func main() {
 			finalLines = append(finalLines, line)
 		}
 	}
-	for _, line := range extra {
+	for _, line := range extra() {
 		if strings.TrimSpace(line) != "" && !strings.HasPrefix(line, "::") {
 			finalLines = append(finalLines, line)
 		}
@@ -65,7 +75,7 @@ func main() {
 
 	// Optionally, write the cleaned content back to a new file
 	outputFile := "cleaned_hosts.txt"
-	err = ioutil.WriteFile(outputFile, []byte(content), 0644)
+	err = ioutil.WriteFile(outputFile, []byte(content), 0o644)
 	if err != nil {
 		log.Fatalf("Could not write to file: %v", err)
 	}
